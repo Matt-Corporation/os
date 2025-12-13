@@ -1,0 +1,68 @@
+# totally not vibe-coded :)
+
+name: Release mattOS
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Parse commit message
+        id: parse_commit
+        run: |
+          msg="$(git log -1 --pretty=format:'%s')"
+          echo "Commit message: $msg"
+
+          if [[ "$msg" =~ ^release:\ version\ (.+)$ ]]; then
+            version="${BASH_REMATCH[1]}"
+            echo "VERSION=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "NO_MATCH=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip if no match
+        if: steps.parse_commit.outputs.NO_MATCH == 'true'
+        run: |
+          echo "Commit message does not match release pattern."
+          exit 0
+
+      - name: Create release branch
+        env:
+          VERSION: ${{ steps.parse_commit.outputs.VERSION }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          branch="version $VERSION"
+          echo "Creating branch '$branch'"
+          git branch "$branch"
+          git push origin "$branch"
+
+      - name: Build kernel
+        run: make
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: "version-${{ steps.parse_commit.outputs.VERSION }}"
+          release_name: "mattOS ${{ steps.parse_commit.outputs.VERSION }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload myos.bin to release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./myos.bin
+          asset_name: myos.bin
+          asset_content_type: application/octet-stream
