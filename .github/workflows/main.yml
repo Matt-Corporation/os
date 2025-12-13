@@ -29,16 +29,11 @@ jobs:
             version="${BASH_REMATCH[1]}"
             echo "VERSION=$version" >> "$GITHUB_OUTPUT"
           else
-            echo "NO_MATCH=true" >> "$GITHUB_OUTPUT"
+            echo "VERSION=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Skip if no match
-        if: steps.parse_commit.outputs.NO_MATCH == 'true'
-        run: |
-          echo "Commit message does not match release pattern."
-          exit 0
-
       - name: Create release branch
+        if: ${{ steps.parse_commit.outputs.VERSION != '' }}
         env:
           VERSION: ${{ steps.parse_commit.outputs.VERSION }}
         run: |
@@ -51,6 +46,7 @@ jobs:
           git push origin "$branch"
 
       - name: Cache i386-elf toolchain
+        if: ${{ steps.parse_commit.outputs.VERSION != '' }}
         id: cache-toolchain
         uses: actions/cache@v4
         with:
@@ -60,12 +56,13 @@ jobs:
             i386-elf-toolchain-binutils-2.43-gcc-14.2.0-${{ runner.os }}
 
       - name: Install dependencies
+        if: ${{ steps.parse_commit.outputs.VERSION != '' }}
         run: |
           sudo apt update
           sudo apt install -y build-essential bison flex libgmp3-dev libmpc-dev libmpfr-dev texinfo libisl-dev wget xz-utils
 
       - name: Build and install i386-elf toolchain
-        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        if: ${{ steps.parse_commit.outputs.VERSION != '' && steps.cache-toolchain.outputs.cache-hit != 'true' }}
         run: |
           export TARGET=i386-elf
           export PREFIX="/opt/i386-elf"
@@ -82,7 +79,6 @@ jobs:
           make install
           cd ..
 
-          # GCC (C only, with libgcc – enough for kernels)
           wget https://ftp.gnu.org/gnu/gcc/gcc-14.2.0/gcc-14.2.0.tar.xz
           tar xf gcc-14.2.0.tar.xz
           mkdir build-gcc && cd build-gcc
@@ -95,15 +91,19 @@ jobs:
           echo "Toolchain built and installed to $PREFIX"
 
       - name: Add toolchain to PATH
+        if: ${{ steps.parse_commit.outputs.VERSION != '' }}
         run: echo "/opt/i386-elf/bin" >> $GITHUB_PATH
 
       - name: Verify toolchain
+        if: ${{ steps.parse_commit.outputs.VERSION != '' }}
         run: i386-elf-gcc --version
 
       - name: Build kernel
-        run: make
+        if: ${{ steps.parse_commit.outputs.VERSION != '' }}
+        run: make CC=i386-elf-gcc CXX=i386-elf-g++ AS=i386-elf-as LD=i386-elf-ld OBJCOPY=i386-elf-objcopy
 
       - name: Create GitHub Release
+        if: ${{ steps.parse_commit.outputs.VERSION != '' }}
         id: create_release
         uses: actions/create-release@v1
         with:
@@ -113,6 +113,7 @@ jobs:
           prerelease: false
 
       - name: Upload myos.bin to release
+        if: ${{ steps.parse_commit.outputs.VERSION != '' }}
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
