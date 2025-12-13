@@ -60,18 +60,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-i686elf-toolchain-
 
-      - name: Download i686-elf toolchain if missing
-        if: steps.setup_toolchain.outputs.cache-hit != 'true'
+            # Restore or populate the cross-compiler cache
+      - name: Restore i686-ELF toolchain cache
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: toolchain
+          key: ${{ runner.os }}-i686-elf-toolchain-v1
+
+      - name: Download and extract toolchain if cache missed
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
-          mkdir -p i686-elf-toolchain
-          curl -L -o toolchain.zip https://github.com/lordmilko/i686-elf-tools/releases/download/13.2.0/i686-elf-tools-linux.zip
-          unzip toolchain.zip -d i686-elf-toolchain
+          mkdir -p toolchain
+          curl -L \
+            https://github.com/lordmilko/i686-elf-tools/releases/download/13.2.0/i686-elf-tools-linux.zip \
+            -o toolchain.zip
+          unzip toolchain.zip -d toolchain
           rm toolchain.zip
 
-      - name: Add i686-elf to PATH
-        run: echo "${{ github.workspace }}/i686-elf-toolchain/linux/output/bin" >> $GITHUB_PATH
+      - name: Add cross-compiler to PATH
+        run: echo "${{ github.workspace }}/toolchain/linux/output/bin" >> $GITHUB_PATH
 
-      - name: Verify cross-compiler
+      - name: Verify cross-compiler exists
         run: i686-elf-gcc --version
 
       - name: Build kernel
