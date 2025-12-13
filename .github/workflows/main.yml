@@ -50,39 +50,22 @@ jobs:
           git branch "$branch"
           git push origin "$branch"
 
-            # Download and cache the i686-ELF cross-compiler
-      - name: Setup i686-elf toolchain
-        id: setup_toolchain
-        uses: actions/cache@v3
-        with:
-          path: i686-elf-toolchain
-          key: ${{ runner.os }}-i686elf-toolchain-v1
-          restore-keys: |
-            ${{ runner.os }}-i686elf-toolchain-
-
-            # Restore or populate the cross-compiler cache
-      - name: Restore i686-ELF toolchain cache
-        id: cache-toolchain
-        uses: actions/cache@v4
-        with:
-          path: toolchain
-          key: ${{ runner.os }}-i686-elf-toolchain-v1
-
-      - name: Download and extract toolchain if cache missed
-        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      - name: Install prerequisites
         run: |
-          mkdir -p toolchain
-          curl -L \
-            https://github.com/lordmilko/i686-elf-tools/releases/download/13.2.0/i686-elf-tools-linux.zip \
-            -o toolchain.zip
-          unzip toolchain.zip -d toolchain
-          rm toolchain.zip
+          sudo apt-get update
+          sudo apt-get install -y build-essential bison flex libgmp3-dev libmpfr-dev libmpc-dev texinfo git
 
-      - name: Add cross-compiler to PATH
-        run: echo "${{ github.workspace }}/toolchain/linux/output/bin" >> $GITHUB_PATH
+      - name: Build i686-elf toolchain
+        run: |
+          mkdir -p /tmp/cross
+          cd /tmp/cross
 
-      - name: Verify cross-compiler exists
-        run: i686-elf-gcc --version
+          git clone https://github.com/lordmilko/i686-elf-tools.git
+          cd i686-elf-tools
+          ./i686-elf-tools.sh linux
+
+      - name: Add cross compiler to PATH
+        run: echo "/tmp/cross/i686-elf-tools/linux/output/bin" >> $GITHUB_PATH
 
       - name: Build kernel
         run: make
