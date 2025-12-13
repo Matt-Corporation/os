@@ -50,22 +50,55 @@ jobs:
           git branch "$branch"
           git push origin "$branch"
 
-      - name: Install prerequisites
+      - name: Cache i386-elf toolchain
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: /opt/i386-elf
+          key: i386-elf-toolchain-binutils-2.43-gcc-14.2.0-${{ runner.os }}
+          restore-keys: |
+            i386-elf-toolchain-binutils-2.43-gcc-14.2.0-${{ runner.os }}
+
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential bison flex libgmp3-dev libmpfr-dev libmpc-dev texinfo git
+          sudo apt update
+          sudo apt install -y build-essential bison flex libgmp3-dev libmpc-dev libmpfr-dev texinfo libisl-dev wget xz-utils
 
-      - name: Build i686-elf toolchain
+      - name: Build and install i386-elf toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
-          mkdir -p /tmp/cross
-          cd /tmp/cross
+          export TARGET=i386-elf
+          export PREFIX="/opt/i386-elf"
+          export PATH="$PREFIX/bin:$PATH"
 
-          git clone https://github.com/lordmilko/i686-elf-tools.git
-          cd i686-elf-tools
-          ./i686-elf-tools.sh linux
+          mkdir -p ~/toolchain-build && cd ~/toolchain-build
 
-      - name: Add cross compiler to PATH
-        run: echo "/tmp/cross/i686-elf-tools/linux/output/bin" >> $GITHUB_PATH
+          # Binutils
+          wget https://ftp.gnu.org/gnu/binutils/binutils-2.43.tar.xz
+          tar xf binutils-2.43.tar.xz
+          mkdir build-binutils && cd build-binutils
+          ../binutils-2.43/configure --target=$TARGET --prefix="$PREFIX" --disable-nls --disable-werror
+          make -j$(nproc)
+          make install
+          cd ..
+
+          # GCC (C only, with libgcc – enough for kernels)
+          wget https://ftp.gnu.org/gnu/gcc/gcc-14.2.0/gcc-14.2.0.tar.xz
+          tar xf gcc-14.2.0.tar.xz
+          mkdir build-gcc && cd build-gcc
+          ../gcc-14.2.0/configure --target=$TARGET --prefix="$PREFIX" --disable-nls --enable-languages=c --without-headers
+          make -j$(nproc) all-gcc
+          make -j$(nproc) all-target-libgcc
+          make install-gcc
+          make install-target-libgcc
+
+          echo "Toolchain built and installed to $PREFIX"
+
+      - name: Add toolchain to PATH
+        run: echo "/opt/i386-elf/bin" >> $GITHUB_PATH
+
+      - name: Verify toolchain
+        run: i386-elf-gcc --version
 
       - name: Build kernel
         run: make
