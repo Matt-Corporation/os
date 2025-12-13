@@ -50,6 +50,30 @@ jobs:
           git branch "$branch"
           git push origin "$branch"
 
+            # Download and cache the i686-ELF cross-compiler
+      - name: Setup i686-elf toolchain
+        id: setup_toolchain
+        uses: actions/cache@v3
+        with:
+          path: i686-elf-toolchain
+          key: ${{ runner.os }}-i686elf-toolchain-v1
+          restore-keys: |
+            ${{ runner.os }}-i686elf-toolchain-
+
+      - name: Download i686-elf toolchain if missing
+        if: steps.setup_toolchain.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p i686-elf-toolchain
+          curl -L -o toolchain.zip https://github.com/lordmilko/i686-elf-tools/releases/download/13.2.0/i686-elf-tools-linux.zip
+          unzip toolchain.zip -d i686-elf-toolchain
+          rm toolchain.zip
+
+      - name: Add i686-elf to PATH
+        run: echo "${{ github.workspace }}/i686-elf-toolchain/linux/output/bin" >> $GITHUB_PATH
+
+      - name: Verify cross-compiler
+        run: i686-elf-gcc --version
+
       - name: Build kernel
         run: make
 
