@@ -1,38 +1,42 @@
-CC      := i686-elf-gcc
-AS      := i686-elf-as
-LD      := i686-elf-gcc
+.PHONY: all test libk tarinit iso run clean
 
-CFLAGS  := -std=gnu99 -ffreestanding -O2 -Wall -Wextra -I src/libc
-LDFLAGS := -T linker.ld -ffreestanding -O2 -nostdlib -lgcc
+rm_test:
+	@rm -f ./tarinit/test
 
-TARGET  := myos.bin
+all: rm_test tarinit libk
+	@chmod +x ./toolchain/build.sh
+	@./toolchain/build.sh
 
-C_SOURCES := $(shell find src -type f -name "*.c")
-ASM_SOURCES := boot.s \
-               $(shell find src -type f -name "*.s")
+test_preload:
+	@touch ./tarinit/test
+	@echo "# Empty file that starts tests when included" > ./tarinit/test
 
-C_OBJECTS   := $(C_SOURCES:.c=.o)
-ASM_OBJECTS := $(ASM_SOURCES:.s=.o)
+test_build: tarinit libk
+	@chmod +x ./toolchain/build.sh
+	@./toolchain/build.sh
 
-OBJECTS := $(C_OBJECTS) $(ASM_OBJECTS)
+test: test_preload test_build
+	@chmod +x ./toolchain/iso.sh
+	@./toolchain/iso.sh
+	@chmod +x ./toolchain/run.sh
+	@./toolchain/run.sh
 
-.PHONY: all clean run build
+libk:
+	@chmod +x ./toolchain/libk.sh
+	@./toolchain/libk.sh
 
-all: $(TARGET)
+tarinit:
+	@chmod +x ./toolchain/tarinit.sh
+	@./toolchain/tarinit.sh
 
-$(TARGET): $(OBJECTS)
-	$(LD) $(LDFLAGS) -o $@ $^
+iso: all
+	@chmod +x ./toolchain/iso.sh
+	@./toolchain/iso.sh
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-%.o: %.s
-	$(AS) $< -o $@
-
-run: $(TARGET)
-	qemu-system-i386 -kernel $(TARGET) -serial stdio
+run: iso
+	@chmod +x ./toolchain/run.sh
+	@./toolchain/run.sh
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
-
-build: $(TARGET)
+	@chmod +x ./toolchain/clean.sh
+	@./toolchain/clean.sh

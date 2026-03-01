@@ -1,3 +1,12 @@
 {
-  "C_Cpp.default.defines": ["__i386__"]
+  "chat.disableAIFeatures": true,
+  "C_Cpp.default.defines": ["__i386__"],
+  "C_Cpp.default.includePath": [
+    "${default}",
+    "${workspaceFolder}/src/libk/includes"
+  ],
+  "files.associations": {
+    ".clang-format": "yaml",
+    ".clangd": "yaml"
+  }
 }
